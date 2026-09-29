@@ -76,3 +76,41 @@ class RegistrationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(get_user_model().objects.exists())
+
+
+class LoginApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = "/api/login/"
+        self.user = get_user_model().objects.create_user(
+            username="loginuser",
+            email="login@example.com",
+            password="correct-password",
+            type="customer",
+        )
+
+    def test_logs_in_user_and_returns_auth_token(self):
+        response = self.client.post(
+            self.url,
+            {"username": "loginuser", "password": "correct-password"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            set(response.data),
+            {"token", "username", "email", "user_id"},
+        )
+        self.assertEqual(response.data["username"], "loginuser")
+        self.assertEqual(response.data["email"], "login@example.com")
+        self.assertTrue(response.data["token"])
+
+    def test_rejects_invalid_credentials(self):
+        response = self.client.post(
+            self.url,
+            {"username": "loginuser", "password": "wrong-password"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Invalid credentials")

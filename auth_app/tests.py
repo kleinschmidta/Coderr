@@ -114,3 +114,90 @@ class LoginApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "Invalid credentials")
+
+
+class ProfileApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user_model = get_user_model()
+        self.user = self.user_model.objects.create_user(
+            username="businessuser",
+            email="business@example.com",
+            password="safe-password",
+            type="business",
+        )
+        self.other_user = self.user_model.objects.create_user(
+            username="customeruser",
+            email="customer@example.com",
+            password="safe-password",
+            type="customer",
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_gets_profile_with_empty_strings_for_optional_fields(self):
+        response = self.client.get(f"/api/profile/{self.user.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["user"], self.user.id)
+        self.assertEqual(response.data["username"], "businessuser")
+        for field in ("first_name", "last_name", "location", "tel", "description", "working_hours"):
+            self.assertEqual(response.data[field], "")
+
+    def test_returns_not_found_for_unknown_profile(self):
+        response = self.client.get("/api/profile/99999/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_updates_own_profile(self):
+        response = self.client.patch(
+            f"/api/profile/{self.user.id}/",
+            {"first_name": "Max", "location": "Berlin", "email": "max@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Max")
+        self.assertEqual(self.user.location, "Berlin")
+        self.assertEqual(self.user.email, "max@example.com")
+
+    def test_cannot_update_another_users_profile(self):
+        response = self.client.patch(
+            f"/api/profile/{self.other_user.id}/",
+            {"first_name": "Not allowed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.other_user.refresh_from_db()
+        self.assertEqual(self.other_user.first_name, "")
+
+    def test_lists_only_business_profiles_on_business_route(self):
+        response = self.client.get("/api/profiles/business/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([profile["user"] for profile in response.data], [self.user.id])
+        self.assertEqual(response.data[0]["type"], "business")
+
+    def test_lists_only_customer_profiles_on_customer_route(self):
+        response = self.client.get("/api/profiles/customer/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([profile["user"] for profile in response.data], [self.other_user.id])
+        self.assertEqual(response.data[0]["type"], "customer")
+
+    def test_profile_routes_require_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(f"/api/profile/{self.user.id}/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_profile_list_routes_require_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        for url in ("/api/profiles/business/", "/api/profiles/customer/"):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+
+                self.assertEqual(response.status_code, 401)

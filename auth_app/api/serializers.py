@@ -23,3 +23,56 @@ class RegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop("repeated_password")
         return CustomUser.objects.create_user(**validated_data)
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    user = serializers.IntegerField(source="pk", read_only=True)
+    created_at = serializers.DateTimeField(source="date_joined", read_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = (
+            "user",
+            "username",
+            "first_name", # #
+            "last_name", # #
+            "file",
+            "location", # #
+            "tel", # #
+            "description", # #
+            "working_hours", # #
+            "type",
+            "email", #
+            "created_at",
+            "uploaded_at",
+        )
+        read_only_fields = ("user", "username", "file", "type", "created_at", "uploaded_at")
+
+
+class BusinessProfileSerializer(ProfileSerializer):
+    class Meta(ProfileSerializer.Meta):
+        fields = (
+            "user",
+            "username",
+            "first_name",
+            "last_name",
+            "file",
+            "location",
+            "tel",
+            "description",
+            "working_hours",
+            "type",
+        )
+
+
+class CustomerProfileSerializer(ProfileSerializer):
+    class Meta(ProfileSerializer.Meta):
+        fields = (
+            "user",
+            "username",
+            "first_name",
+            "last_name",
+            "file",
+            "uploaded_at",
+            "type",
+        )

@@ -5,10 +5,11 @@ from rest_framework.test import APIClient
 from offers_app.models import Offer, OfferDetail
 
 
-class OfferCreationApiTests(TestCase):
+class OfferApiBaseTestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
         user_model = get_user_model()
+
         self.business_user = user_model.objects.create_user(
             username="businessuser",
             email="business@example.com",
@@ -21,6 +22,7 @@ class OfferCreationApiTests(TestCase):
             password="safe-password",
             type="customer",
         )
+
         self.client.force_authenticate(user=self.business_user)
         self.url = "/api/offers/"
         self.payload = {
@@ -55,6 +57,8 @@ class OfferCreationApiTests(TestCase):
             ],
         }
 
+
+class OfferCreationApiTests(OfferApiBaseTestCase):
     def test_business_user_creates_offer_with_three_details(self):
         response = self.client.post(self.url, self.payload, format="json")
 
@@ -80,6 +84,15 @@ class OfferCreationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_offer_requires_exactly_three_details(self):
+        self.payload["details"] = self.payload["details"][:2]
+
+        response = self.client.post(self.url, self.payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+
+class OfferListApiTests(OfferApiBaseTestCase):
     def test_business_user_can_list_offers(self):
         self.client.post(self.url, self.payload, format="json")
 
@@ -151,12 +164,5 @@ class OfferCreationApiTests(TestCase):
             self.url,
             {"creator_id": "not-an-int", "min_price": "abc", "max_delivery_time": "-1"},
         )
-
-        self.assertEqual(response.status_code, 400)
-
-    def test_offer_requires_exactly_three_details(self):
-        self.payload["details"] = self.payload["details"][:2]
-
-        response = self.client.post(self.url, self.payload, format="json")
 
         self.assertEqual(response.status_code, 400)

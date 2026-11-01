@@ -1,9 +1,12 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from offers_app.models import Offer, OfferDetail
 
 
 class OfferDetailSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=False)
+
     class Meta:
         model = OfferDetail
         fields = (
@@ -89,3 +92,57 @@ class OfferListSerializer(serializers.ModelSerializer):
             "last_name": obj.user.last_name,
             "username": obj.user.username,
         }
+
+
+class OfferRetrieveSerializer(OfferListSerializer):
+    class Meta(OfferListSerializer.Meta):
+        fields = (
+            "id",
+            "user",
+            "title",
+            "image",
+            "description",
+            "created_at",
+            "updated_at",
+            "details",
+            "min_price",
+            "min_delivery_time",
+        )
+
+    def get_details(self, obj):
+        request = self.context["request"]
+        return [
+            {"id": detail.id, "url": request.build_absolute_uri(f"/api/offerdetails/{detail.id}/")}
+            for detail in obj.details.all()
+        ]
+
+
+class OfferUpdateSerializer(serializers.ModelSerializer):
+    """Update an offer partially; details are matched by their offer_type."""
+
+    details = OfferDetailSerializer(many=True, required=False)
+
+    class Meta:
+        model = Offer
+        fields = ("id", "title", "image", "description", "details")
+        read_only_fields = ("id",)
+
+    def validate_details(self, details):
+        offer_types = [detail.get("offer_type") for detail in details]
+        if None in offer_types:
+            raise serializers.ValidationError("Each detail must contain an offer_type.")
+        if len(offer_types) != len(set(offer_types)):
+            raise serializers.ValidationError("Each offer_type may only be given once.")
+        existing_types = {detail.offer_type for detail in self.instance.details.all()}
+        if not existing_types.issuperset(offer_types):
+            raise serializers.ValidationError("The offer has no detail with this offer_type.")
+        return details
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        details_data = validated_data.pop("details", [])
+        instance = super().update(instance, validated_data)
+        details = {detail.offer_type: detail for detail in instance.details.all()}
+        for detail_data in details_data:
+            OfferDetailSerializer().update(details[detail_data["offer_type"]], detail_data)
+        return instance

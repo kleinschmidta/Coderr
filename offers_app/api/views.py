@@ -1,5 +1,6 @@
 from django.db.models import Q, Min
 from rest_framework import status
+from rest_framework.generics import RetrieveUpdateDestroyAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,7 +8,14 @@ from rest_framework.views import APIView
 
 from auth_app.models import CustomUser
 from offers_app.models import Offer
-from .serializers import OfferListFilterSerializer, OfferListSerializer, OfferCreateSerializer
+from .permissions import IsOfferOwnerOrReadOnly
+from .serializers import (
+    OfferCreateSerializer,
+    OfferListFilterSerializer,
+    OfferListSerializer,
+    OfferRetrieveSerializer,
+    OfferUpdateSerializer,
+)
 
 
 class OfferListView(APIView):
@@ -71,3 +79,15 @@ class OfferCreateView(APIView):
 
 class OfferListCreateView(OfferListView, OfferCreateView):
     pass
+
+
+class OfferRetrieveUpdateDestroyView(RetrieveUpdateDestroyAPIView):
+    queryset = Offer.objects.prefetch_related("details")
+    serializer_class = OfferRetrieveSerializer
+    permission_classes = [IsAuthenticated, IsOfferOwnerOrReadOnly]
+    http_method_names = ["get", "patch", "delete", "head", "options"]
+
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return OfferUpdateSerializer
+        return self.serializer_class

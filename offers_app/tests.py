@@ -364,3 +364,47 @@ class OfferDeleteApiTests(OfferSingleApiBaseTestCase):
         response = self.client.delete(self.missing_url)
 
         self.assertEqual(response.status_code, 404)
+
+
+class OfferDetailRetrieveApiTests(OfferSingleApiBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.detail_url = f"/api/offerdetails/{self.detail_ids['basic']}/"
+        self.missing_detail_url = f"/api/offerdetails/{max(self.detail_ids.values()) + 1}/"
+
+    def test_authenticated_user_retrieves_offer_detail(self):
+        self.client.force_authenticate(user=self.customer_user)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {
+                "id": self.detail_ids["basic"],
+                "title": "Basic Design",
+                "revisions": 2,
+                "delivery_time_in_days": 5,
+                "price": 100,
+                "features": ["Logo Design"],
+                "offer_type": "basic",
+            },
+        )
+
+    def test_retrieve_detail_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_retrieve_unknown_detail_returns_404(self):
+        response = self.client.get(self.missing_detail_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_detail_endpoint_is_read_only(self):
+        for method in (self.client.patch, self.client.delete, self.client.post):
+            response = method(self.detail_url, {}, format="json")
+
+            self.assertEqual(response.status_code, 405)

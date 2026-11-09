@@ -1,16 +1,17 @@
 from django.db.models import Q, Min
 from rest_framework import status
-from rest_framework.generics import RetrieveUpdateDestroyAPIView
+from rest_framework.generics import RetrieveAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from auth_app.models import CustomUser
-from offers_app.models import Offer
+from offers_app.models import Offer, OfferDetail
 from .permissions import IsOfferOwnerOrReadOnly
 from .serializers import (
     OfferCreateSerializer,
+    OfferDetailSerializer,
     OfferListFilterSerializer,
     OfferListSerializer,
     OfferRetrieveSerializer,
@@ -91,3 +92,9 @@ class OfferRetrieveUpdateDestroyView(RetrieveUpdateDestroyAPIView):
         if self.request.method == "PATCH":
             return OfferUpdateSerializer
         return self.serializer_class
+
+
+class OfferDetailRetrieveView(RetrieveAPIView):
+    queryset = OfferDetail.objects.all()
+    serializer_class = OfferDetailSerializer
+    permission_classes = [IsAuthenticated]

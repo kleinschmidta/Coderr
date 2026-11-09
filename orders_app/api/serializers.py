@@ -3,6 +3,10 @@ from rest_framework import serializers
 from orders_app.models import Order
 
 
+class OrderCreateSerializer(serializers.Serializer):
+    offer_detail_id = serializers.IntegerField()
+
+
 class OrderSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=False)
 

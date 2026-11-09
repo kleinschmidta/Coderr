@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from offers_app.models import Offer, OfferDetail
 from orders_app.models import Order
 
 
@@ -116,3 +117,84 @@ class OrderListApiTests(OrderApiBaseTestCase):
         self.assertEqual(order["price"], 150)
         self.assertEqual(order["features"], ["Logo Design", "Visitenkarten"])
         self.assertEqual(order["status"], "in_progress")
+
+
+class OrderCreateApiTests(OrderApiBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        offer = Offer.objects.create(user=self.business, title="Grafikdesign")
+        self.detail = OfferDetail.objects.create(
+            offer=offer,
+            title="Logo Design",
+            revisions=3,
+            delivery_time_in_days=5,
+            price=150,
+            features=["Logo Design", "Visitenkarten"],
+            offer_type="basic",
+        )
+
+    def post_as(self, user, data):
+        self.client.force_authenticate(user=user)
+        return self.client.post(self.url, data, format="json")
+
+    def test_create_requires_authentication(self):
+        response = self.client.post(self.url, {"offer_detail_id": self.detail.id}, format="json")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_business_user_cannot_create_order(self):
+        response = self.post_as(self.business, {"offer_detail_id": self.detail.id})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_customer_creates_order(self):
+        response = self.post_as(self.customer, {"offer_detail_id": self.detail.id})
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_order_copies_offer_detail_values(self):
+        order = self.post_as(self.customer, {"offer_detail_id": self.detail.id}).data
+
+        self.assertEqual(order["title"], "Logo Design")
+        self.assertEqual(order["revisions"], 3)
+        self.assertEqual(order["delivery_time_in_days"], 5)
+        self.assertEqual(order["price"], 150)
+        self.assertEqual(order["features"], ["Logo Design", "Visitenkarten"])
+        self.assertEqual(order["offer_type"], "basic")
+
+    def test_order_gets_customer_business_and_status(self):
+        order = self.post_as(self.customer, {"offer_detail_id": self.detail.id}).data
+
+        self.assertEqual(order["customer_user"], self.customer.id)
+        self.assertEqual(order["business_user"], self.business.id)
+        self.assertEqual(order["status"], "in_progress")
+
+    def test_response_has_expected_fields(self):
+        order = self.post_as(self.customer, {"offer_detail_id": self.detail.id}).data
+
+        self.assertCountEqual(
+            order.keys(),
+            [
+                "id", "customer_user", "business_user", "title", "revisions",
+                "delivery_time_in_days", "price", "features", "offer_type",
+                "status", "created_at", "updated_at",
+            ],
+        )
+
+    def test_missing_offer_detail_id_returns_400(self):
+        response = self.post_as(self.customer, {})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_invalid_offer_detail_id_returns_400(self):
+        response = self.post_as(self.customer, {"offer_detail_id": "abc"})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_offer_detail_returns_404(self):
+        response = self.post_as(self.customer, {"offer_detail_id": 9999})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(Order.objects.count(), 0)

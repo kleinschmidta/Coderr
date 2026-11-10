@@ -1,14 +1,18 @@
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.generics import ListCreateAPIView
+from rest_framework.generics import ListCreateAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from offers_app.models import OfferDetail
 from orders_app.models import Order
-from .permissions import IsCustomerUser
-from .serializers import OrderCreateSerializer, OrderSerializer
+from .permissions import IsBusinessUser, IsCustomerUser, IsOrderBusinessUser
+from .serializers import (
+    OrderCreateSerializer,
+    OrderSerializer,
+    OrderUpdateSerializer,
+)
 
 
 class OrderListCreateView(ListCreateAPIView):
@@ -31,7 +35,8 @@ class OrderListCreateView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        detail = get_object_or_404(OfferDetail, pk=serializer.validated_data["offer_detail_id"])
+        detail = get_object_or_404(
+            OfferDetail, pk=serializer.validated_data["offer_detail_id"])
         order = self.create_order(detail, request.user)
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
@@ -46,3 +51,17 @@ class OrderListCreateView(ListCreateAPIView):
             features=detail.features,
             offer_type=detail.offer_type,
         )
+
+
+class OrderDetailView(UpdateAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderUpdateSerializer
+    permission_classes = [IsAuthenticated, IsBusinessUser, IsOrderBusinessUser]
+    http_method_names = ["patch", "options"]
+
+    def update(self, request, *args, **kwargs):
+        order = self.get_object()
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(OrderSerializer(order).data)

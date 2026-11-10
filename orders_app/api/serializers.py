@@ -8,7 +8,8 @@ class OrderCreateSerializer(serializers.Serializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=False)
+    price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, coerce_to_string=False)
 
     class Meta:
         model = Order
@@ -27,3 +28,21 @@ class OrderSerializer(serializers.ModelSerializer):
             "updated_at",
         )
         read_only_fields = fields
+
+
+class OrderUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ("status",)
+
+    def validate(self, attrs):
+        self.check_unknown_fields()
+        if "status" not in attrs:
+            raise serializers.ValidationError({"status": "This field is required."})
+        return attrs
+
+    def check_unknown_fields(self):
+        unknown = set(self.initial_data) - set(self.fields)
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unzulässige Felder: {', '.join(sorted(unknown))}")

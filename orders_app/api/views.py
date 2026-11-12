@@ -82,12 +82,24 @@ class OrderDetailView(UpdateAPIView, DestroyAPIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderCountView(APIView):
+class BaseOrderCountView(APIView):
     permission_classes = [IsAuthenticated]
+    order_status = None
+    count_key = None
 
     def get(self, request, business_user_id):
         business = get_object_or_404(
             get_user_model(), pk=business_user_id, type="business")
         count = Order.objects.filter(
-            business_user=business, status=Order.Status.IN_PROGRESS).count()
-        return Response({"order_count": count})
+            business_user=business, status=self.order_status).count()
+        return Response({self.count_key: count})
+
+
+class OrderCountView(BaseOrderCountView):
+    order_status = Order.Status.IN_PROGRESS
+    count_key = "order_count"
+
+
+class CompletedOrderCountView(BaseOrderCountView):
+    order_status = Order.Status.COMPLETED
+    count_key = "completed_order_count"

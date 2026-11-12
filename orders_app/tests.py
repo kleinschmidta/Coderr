@@ -350,3 +350,48 @@ class OrderCountApiTests(OrderApiBaseTestCase):
     def test_business_user_can_query_count(self):
         response = self.get_as(self.other_business, self.business.id)
         self.assertEqual(response.status_code, 200)
+
+
+class CompletedOrderCountApiTests(OrderApiBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = "/api/completed-order-count/"
+
+    def get_as(self, user, business_id):
+        self.client.force_authenticate(user=user)
+        return self.client.get(f"{self.url}{business_id}/")
+
+    def test_no_authentication_returns_401(self):
+        response = self.client.get(f"{self.url}{self.business.id}/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_unknown_business_returns_404(self):
+        response = self.get_as(self.customer, 9999)
+        self.assertEqual(response.status_code, 404)
+
+    def test_customer_id_returns_404(self):
+        response = self.get_as(self.customer, self.other_customer.id)
+        self.assertEqual(response.status_code, 404)
+
+    def test_business_without_orders_returns_zero(self):
+        response = self.get_as(self.customer, self.business.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"completed_order_count": 0})
+
+    def test_counts_only_completed_orders(self):
+        self.create_order(self.customer, self.business, status="completed")
+        self.create_order(self.customer, self.business, status="completed")
+        self.create_order(self.customer, self.business)
+        self.create_order(self.customer, self.business, status="cancelled")
+        response = self.get_as(self.customer, self.business.id)
+        self.assertEqual(response.data, {"completed_order_count": 2})
+
+    def test_ignores_orders_of_other_business(self):
+        self.create_order(self.customer, self.business, status="completed")
+        self.create_order(self.customer, self.other_business, status="completed")
+        response = self.get_as(self.customer, self.business.id)
+        self.assertEqual(response.data, {"completed_order_count": 1})
+
+    def test_business_user_can_query_count(self):
+        response = self.get_as(self.other_business, self.business.id)
+        self.assertEqual(response.status_code, 200)

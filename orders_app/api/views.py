@@ -1,13 +1,22 @@
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.generics import ListCreateAPIView, UpdateAPIView
+from rest_framework.generics import (
+    DestroyAPIView,
+    ListCreateAPIView,
+    UpdateAPIView,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from offers_app.models import OfferDetail
 from orders_app.models import Order
-from .permissions import IsBusinessUser, IsCustomerUser, IsOrderBusinessUser
+from .permissions import (
+    IsBusinessUser,
+    IsCustomerUser,
+    IsOrderBusinessUser,
+    IsStaffUser,
+)
 from .serializers import (
     OrderCreateSerializer,
     OrderSerializer,
@@ -53,11 +62,15 @@ class OrderListCreateView(ListCreateAPIView):
         )
 
 
-class OrderDetailView(UpdateAPIView):
+class OrderDetailView(UpdateAPIView, DestroyAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderUpdateSerializer
-    permission_classes = [IsAuthenticated, IsBusinessUser, IsOrderBusinessUser]
-    http_method_names = ["patch", "options"]
+    http_method_names = ["patch", "delete", "options"]
+
+    def get_permissions(self):
+        if self.request.method == "DELETE":
+            return [IsAuthenticated(), IsStaffUser()]
+        return [IsAuthenticated(), IsBusinessUser(), IsOrderBusinessUser()]
 
     def update(self, request, *args, **kwargs):
         order = self.get_object()

@@ -269,3 +269,40 @@ class OrderUpdateApiTests(OrderApiBaseTestCase):
                 "status", "created_at", "updated_at",
             ],
         )
+
+
+class OrderDeleteApiTests(OrderApiBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.order = self.create_order(self.customer, self.business)
+        self.staff = get_user_model().objects.create_user(
+            username="staff", email="staff@example.com",
+            password="safe-password", type="customer", is_staff=True)
+
+    def delete_as(self, user):
+        self.client.force_authenticate(user=user)
+        return self.client.delete(f"{self.url}{self.order.id}/")
+
+    def test_no_authentication_returns_401(self):
+        response = self.client.delete(f"{self.url}{self.order.id}/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_customer_cannot_delete_order(self):
+        response = self.delete_as(self.customer)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Order.objects.filter(pk=self.order.pk).exists())
+
+    def test_business_cannot_delete_order(self):
+        response = self.delete_as(self.business)
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Order.objects.filter(pk=self.order.pk).exists())
+
+    def test_staff_can_delete_order(self):
+        response = self.delete_as(self.staff)
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Order.objects.filter(pk=self.order.pk).exists())
+
+    def test_unknown_id_returns_404(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.delete(f"{self.url}9999/")
+        self.assertEqual(response.status_code, 404)

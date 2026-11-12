@@ -17,6 +17,14 @@ class IsBusinessUser(BasePermission):
         return user.is_authenticated and user.type == "business"
 
 
+class IsStaffUser(BasePermission):
+    """Allow access only to authenticated staff (admin) users."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return user.is_authenticated and user.is_staff
+
+
 class IsOrderBusinessUser(BasePermission):
     """Allow access only to the business user of the given order."""
 

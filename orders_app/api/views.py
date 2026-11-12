@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -8,6 +9,7 @@ from rest_framework.generics import (
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from offers_app.models import OfferDetail
 from orders_app.models import Order
@@ -78,3 +80,14 @@ class OrderDetailView(UpdateAPIView, DestroyAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(OrderSerializer(order).data)
+
+
+class OrderCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, business_user_id):
+        business = get_object_or_404(
+            get_user_model(), pk=business_user_id, type="business")
+        count = Order.objects.filter(
+            business_user=business, status=Order.Status.IN_PROGRESS).count()
+        return Response({"order_count": count})
